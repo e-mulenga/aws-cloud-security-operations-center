@@ -1,0 +1,76 @@
+# ============================================================
+# AWS Cloud Security Operations Centre — Example tfvars
+# ============================================================
+# cp terraform.tfvars.example environments/prod/terraform.tfvars
+# NEVER commit terraform.tfvars to git.
+# ============================================================
+
+organization_name = "acme-enterprise"
+aws_region        = "af-south-1"
+dr_region         = "eu-west-1"
+environment       = "prod"
+owner             = "Cloud Security Team"
+cost_center       = "SEC001"
+
+# ---- Account IDs (from aws-enterprise-landing-zone outputs) -
+management_account_id = ""    # terraform -chdir=../aws-enterprise-landing-zone output
+security_account_id   = ""    # terraform -chdir=../aws-enterprise-landing-zone output security_account_id
+logging_account_id    = ""    # terraform -chdir=../aws-enterprise-landing-zone output logging_account_id
+organization_id       = ""    # terraform -chdir=../aws-enterprise-landing-zone output organization_id
+
+# ---- Landing Zone Inputs ------------------------------------
+kms_key_arn               = ""    # terraform output kms_cloudtrail_key_arn
+cloudtrail_bucket_name    = "acme-enterprise-org-cloudtrail-prod"
+cloudtrail_log_group_name = "/aws/cloudtrail/acme-enterprise-prod-org-trail"
+guardduty_detector_id     = ""    # terraform output guardduty_detector_id
+
+# ---- DevSecOps Pipeline Inputs (from aws-devsecops-pipeline) -
+pipeline_alerts_topic_arn = ""    # terraform -chdir=../aws-devsecops-pipeline output alerts_topic_arn
+ecr_repository_arns       = []    # terraform -chdir=../aws-devsecops-pipeline output ecr_repository_arns
+
+# ---- Security Hub ------------------------------------------
+securityhub_aggregation_region = "af-south-1"
+securityhub_auto_enable_controls = true
+member_account_ids = []    # dev, test, prod, shared-services account IDs
+
+# ---- GuardDuty Automation ----------------------------------
+guardduty_auto_remediate          = true
+guardduty_high_severity_threshold = 7.0
+
+# ---- Amazon Detective --------------------------------------
+detective_enabled = true
+
+# ---- Amazon Macie ------------------------------------------
+macie_enabled       = true
+macie_scan_frequency = "SCHEDULED"
+macie_bucket_arns   = []    # S3 bucket ARNs to scan for sensitive data
+
+# ---- IAM Access Analyzer -----------------------------------
+access_analyzer_type = "ORGANIZATION"
+
+# ---- Incident Response -------------------------------------
+incident_response_enabled  = true
+auto_isolate_ec2_enabled   = false    # CAUTION: disruptive — opt-in explicitly
+auto_disable_iam_enabled   = false    # CAUTION: disruptive — opt-in explicitly
+auto_remediate_s3_enabled  = true     # Safe automatic remediation
+
+# ---- SOC Data Store ----------------------------------------
+soc_bucket_name      = "acme-enterprise-soc-data-prod"
+finding_archive_days = 90
+
+# ---- CloudTrail Analytics ----------------------------------
+athena_workgroup_name = "acme-enterprise-prod-soc-workgroup"
+athena_results_bucket = "acme-enterprise-prod-athena-results"
+
+# ---- Notifications ------------------------------------------
+soc_alert_email            = "soc-team@company.com"
+soc_critical_email         = "security-oncall@company.com"
+slack_webhook_secret_arn   = ""    # Optional: Secrets Manager ARN
+chatbot_slack_workspace_id = ""    # Optional: Slack workspace ID
+chatbot_slack_channel_id   = ""    # Optional: #cloud-security channel ID
+
+# ---- Monitoring Thresholds ----------------------------------
+log_retention_days                = 365
+critical_finding_alarm_threshold  = 1
+high_finding_alarm_threshold      = 5
+guardduty_finding_alarm_threshold = 3
