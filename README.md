@@ -1,7 +1,7 @@
 # AWS Cloud Security Operations Centre
 
-[![Security Scan](https://github.com/your-org/aws-cloud-security-operations-center/actions/workflows/security-scan.yml/badge.svg)](https://github.com/your-org/aws-cloud-security-operations-center/actions)
-[![Terraform Plan](https://github.com/your-org/aws-cloud-security-operations-center/actions/workflows/terraform-plan.yml/badge.svg)](https://github.com/your-org/aws-cloud-security-operations-center/actions)
+[![Security Scan](https://github.com/e-mulenga/aws-cloud-security-operations-center/actions/workflows/security-scan.yml/badge.svg)](https://github.com/e-mulenga/aws-cloud-security-operations-center/actions)
+[![Terraform Plan](https://github.com/e-mulenga/aws-cloud-security-operations-center/actions/workflows/terraform-plan.yml/badge.svg)](https://github.com/e-mulenga/aws-cloud-security-operations-center/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.6.0-623CE4.svg)](https://www.terraform.io)
 [![AWS Provider](https://img.shields.io/badge/AWS_Provider-~%3E5.40-FF9900.svg)](https://registry.terraform.io/providers/hashicorp/aws)
@@ -38,7 +38,7 @@
 
 ## 1. Executive Summary
 
-This repository delivers a **production-grade Cloud Security Operations Centre (CSOC)** built entirely on AWS-native security services, orchestrated with Terraform. It is the intelligence and response layer of the Enterprise Cloud Platform Portfolio — consuming security telemetry from the [AWS Enterprise Landing Zone](https://github.com/your-org/aws-enterprise-landing-zone-terraform) and the [DevSecOps Pipeline](https://github.com/your-org/aws-devsecops-pipeline), and exporting unified posture data to [multi-cloud-governance](https://github.com/your-org/multi-cloud-governance).
+This repository delivers a **production-grade Cloud Security Operations Centre (CSOC)** built entirely on AWS-native security services, orchestrated with Terraform. It is the intelligence and response layer of the Enterprise Cloud Platform Portfolio — consuming security telemetry from the [AWS Enterprise Landing Zone](https://github.com/e-mulenga/aws-enterprise-landing-zone-terraform) and the [DevSecOps Pipeline](https://github.com/e-mulenga/aws-devsecops-pipeline), and exporting unified posture data to [multi-cloud-governance](https://github.com/e-mulenga/multi-cloud-governance).
 
 **What this repository builds:**
 - **Security Hub aggregator** — cross-region finding consolidation with Kinesis Firehose export to S3
@@ -827,12 +827,12 @@ flowchart TD
 
 | Repository | Relationship | My Integration |
 |---|---|---|
-| **[aws-enterprise-landing-zone](https://github.com/your-org/aws-enterprise-landing-zone-terraform)** | Upstream — provides KMS, GuardDuty, Security Hub, CloudTrail | `kms_key_arn`, `guardduty_detector_id`, `cloudtrail_bucket_name` consumed as variables |
-| **[terraform-enterprise-module-library](https://github.com/your-org/terraform-enterprise-module-library)** | Upstream — reusable modules | `kms`, `s3`, `guardduty`, `security-hub` modules referenced |
-| **[aws-devsecops-pipeline](https://github.com/your-org/aws-devsecops-pipeline)** | Upstream — pipeline alerts | `alerts_topic_arn` subscribed to SOC SQS queue |
-| **[aws-cloud-security-operations-center](https://github.com/your-org/aws-cloud-security-operations-center)** | **YOU ARE HERE** | — |
-| **[aws-secure-eks-platform](https://github.com/your-org/aws-secure-eks-platform)** | Sibling — EKS findings in Security Hub | EKS GuardDuty findings appear in SOC aggregator |
-| **[multi-cloud-governance](https://github.com/your-org/multi-cloud-governance)** | Downstream — consumes posture exports | `critical_alerts_topic_arn`, `soc_bucket_name`, `security_posture_export_bucket` |
+| **[aws-enterprise-landing-zone](https://github.com/e-mulenga/aws-enterprise-landing-zone-terraform)** | Upstream — provides KMS, GuardDuty, Security Hub, CloudTrail | `kms_key_arn`, `guardduty_detector_id`, `cloudtrail_bucket_name` consumed as variables |
+| **[terraform-enterprise-module-library](https://github.com/e-mulenga/terraform-enterprise-module-library)** | Upstream — reusable modules | `kms`, `s3`, `guardduty`, `security-hub` modules referenced |
+| **[aws-devsecops-pipeline](https://github.com/e-mulenga/aws-devsecops-pipeline)** | Upstream — pipeline alerts | `alerts_topic_arn` subscribed to SOC SQS queue |
+| **[aws-cloud-security-operations-center](https://github.com/e-mulenga/aws-cloud-security-operations-center)** | **YOU ARE HERE** | — |
+| **[aws-secure-eks-platform](https://github.com/e-mulenga/aws-secure-eks-platform)** | Sibling — EKS findings in Security Hub | EKS GuardDuty findings appear in SOC aggregator |
+| **[multi-cloud-governance](https://github.com/e-mulenga/multi-cloud-governance)** | Downstream — consumes posture exports | `critical_alerts_topic_arn`, `soc_bucket_name`, `security_posture_export_bucket` |
 
 ---
 
