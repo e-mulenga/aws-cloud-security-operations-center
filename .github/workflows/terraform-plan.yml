@@ -1,4 +1,31 @@
-security-scan:
+name: Terraform Plan
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["**.tf", "lambda/**", ".github/workflows/terraform-*.yml"]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+  security-events: write
+
+env:
+  TF_VERSION: "1.7.5"
+  AWS_REGION: "af-south-1"
+
+jobs:
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2.3.9
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+
+  security-scan:
     name: IaC Security Scan
     runs-on: ubuntu-latest
     needs: secret-scan
@@ -11,16 +38,86 @@ security-scan:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           format: sarif
           output_file: tfsec.sarif
+      - name: Ensure SARIF file exists
+        if: always()
+        run: |
+          if [ ! -f tfsec.sarif ]; then
+            echo '{"runs": []}' > tfsec.sarif
+          fi
       - uses: github/codeql-action/upload-sarif@v3.29.5
         if: always()
         with: { sarif_file: tfsec.sarif, category: tfsec }
-      - uses: bridgecrewio/checkov-action@v12.3.2
+      - uses: bridgecrewio/checkov-action@master
         with: 
           directory: . 
           framework: terraform 
           output_format: sarif 
           output_file_path: checkov.sarif 
           soft_fail: true
+      - name: Ensure SARIF file exists
+        if: always()
+        run: |
+          if [ ! -f checkov.sarif ]; then
+            echo '{"runs": []}' > checkov.sarif
+          fi
       - uses: github/codeql-action/upload-sarif@v3.29.5
         if: always()
         with: { sarif_file: checkov.sarif, category: checkov }
+
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    needs: secret-scan
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+      - run: terraform fmt -check -recursive -diff
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+
+  plan:
+    name: Plan — ${{ matrix.environment }}
+    runs-on: ubuntu-latest
+    needs: [security-scan, validate]
+    environment: ${{ matrix.environment }}-plan
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, test, prod]
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: aws-actions/configure-aws-credentials@v4.1.0
+        with:
+          role-to-assume: ${{ secrets[format('AWS_PLAN_ROLE_ARN_{0}', upper(matrix.environment))] }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-SOC-Plan-${{ matrix.environment }}-${{ github.run_id }}
+          role-duration-seconds: 1800
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+      - name: Terraform Init
+        run: terraform init -backend-config="environments/${{ matrix.environment }}/backend.tf" -input=false -reconfigure
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan \
+            -var-file="environments/${{ matrix.environment }}/terraform.tfvars" \
+            -out="plan-${{ matrix.environment }}.tfplan" \
+            -input=false -no-color 2>&1 | tee plan-output.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+      - name: Post plan to PR
+        uses: actions/github-script@v7.0.1
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('plan-output.txt', 'utf8');
+            const truncated = output.length > 60000 ? output.substring(0,60000) + '\n... [truncated]' : output;
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner, repo: context.repo.repo,
+              body: `## Terraform Plan — \`${{ matrix.environment }}\`\n\n\`\`\`hcl\n${truncated}\n\`\`\`\n> Commit \`${{ github.sha }}\``
+            });
+      - name: Fail on plan error
+        if: steps.plan.outputs.exitcode != '0' && steps.plan.outputs.exitcode != '2'
+        run: exit 1

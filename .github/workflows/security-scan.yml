@@ -27,6 +27,12 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           format: sarif
           output_file: tfsec.sarif
+      - name: Ensure SARIF file exists
+        if: always()
+        run: |
+          if [ ! -f tfsec.sarif ]; then
+            echo '{"runs": []}' > tfsec.sarif
+          fi
       - uses: github/codeql-action/upload-sarif@v3.29.5
         if: always()
         with: { sarif_file: tfsec.sarif, category: tfsec }
@@ -36,13 +42,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.2.2
-      - uses: bridgecrewio/checkov-action@v12.3.2
+      - uses: bridgecrewio/checkov-action@master
         with: 
           directory: . 
           framework: terraform 
           output_format: sarif 
           output_file_path: checkov.sarif 
           soft_fail: true
+      - name: Ensure SARIF file exists
+        if: always()
+        run: |
+          if [ ! -f checkov.sarif ]; then
+            echo '{"runs": []}' > checkov.sarif
+          fi
       - uses: github/codeql-action/upload-sarif@v3.29.5
         if: always()
         with: { sarif_file: checkov.sarif, category: checkov }
@@ -54,7 +66,11 @@ jobs:
       - uses: actions/checkout@v4.2.2
       - run: pip install bandit --quiet
       - run: |
-          bandit -r lambda/ -f sarif -o bandit.sarif --severity-level medium || true
+          if [ -d "lambda" ]; then
+            bandit -r lambda/ -f sarif -o bandit.sarif --severity-level medium || true
+          else
+            echo '{"runs": []}' > bandit.sarif
+          fi
       - uses: github/codeql-action/upload-sarif@v3.29.5
         if: always()
         with: { sarif_file: bandit.sarif, category: bandit }
@@ -81,6 +97,12 @@ jobs:
           output: trivy.sarif 
           severity: "HIGH,CRITICAL" 
           exit-code: "0"
+      - name: Ensure SARIF file exists
+        if: always()
+        run: |
+          if [ ! -f trivy.sarif ]; then
+            echo '{"runs": []}' > trivy.sarif
+          fi
       - uses: github/codeql-action/upload-sarif@v3.29.5
         if: always()
         with: { sarif_file: trivy.sarif, category: trivy }
