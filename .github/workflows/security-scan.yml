@@ -43,14 +43,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.2.2
-      - uses: bridgecrewio/checkov-action@master
-        continue-on-error: true
-        with: 
-          directory: . 
-          framework: terraform 
-          output_format: sarif 
-          output_file_path: checkov.sarif 
-          soft_fail: true
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Run Checkov SAST
+        run: |
+          pip install checkov --quiet
+          checkov -d . --output sarif --output-file checkov.sarif || true
       - name: Ensure valid SARIF exists
         if: always()
         run: |
