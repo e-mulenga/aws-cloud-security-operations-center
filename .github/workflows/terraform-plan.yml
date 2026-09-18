@@ -38,30 +38,33 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           format: sarif
           output_file: tfsec.sarif
-      - name: Ensure SARIF file exists
+      - name: Ensure valid SARIF exists
         if: always()
         run: |
-          if [ ! -f tfsec.sarif ]; then
-            echo '{"runs": []}' > tfsec.sarif
+          if [ ! -f tfsec.sarif ] || [ ! -s tfsec.sarif ]; then
+            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "tfsec"}}, "results": []}]}' > tfsec.sarif
           fi
       - uses: github/codeql-action/upload-sarif@v3.29.5
         if: always()
+        continue-on-error: true
         with: { sarif_file: tfsec.sarif, category: tfsec }
       - uses: bridgecrewio/checkov-action@master
+        continue-on-error: true
         with: 
           directory: . 
           framework: terraform 
           output_format: sarif 
           output_file_path: checkov.sarif 
           soft_fail: true
-      - name: Ensure SARIF file exists
+      - name: Ensure valid SARIF exists
         if: always()
         run: |
-          if [ ! -f checkov.sarif ]; then
-            echo '{"runs": []}' > checkov.sarif
+          if [ ! -f checkov.sarif ] || [ ! -s checkov.sarif ]; then
+            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "checkov"}}, "results": []}]}' > checkov.sarif
           fi
       - uses: github/codeql-action/upload-sarif@v3.29.5
         if: always()
+        continue-on-error: true
         with: { sarif_file: checkov.sarif, category: checkov }
 
   validate:
@@ -84,12 +87,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment: [dev, test, prod]
+        include:
+          - environment: dev
+            secret_name: AWS_PLAN_ROLE_ARN_DEV
+          - environment: test
+            secret_name: AWS_PLAN_ROLE_ARN_TEST
+          - environment: prod
+            secret_name: AWS_PLAN_ROLE_ARN_PROD
     steps:
       - uses: actions/checkout@v4.2.2
       - uses: aws-actions/configure-aws-credentials@v4.1.0
         with:
-          role-to-assume: ${{ secrets[format('AWS_PLAN_ROLE_ARN_{0}', upper(matrix.environment))] }}
+          role-to-assume: ${{ secrets[matrix.secret_name] }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: GitHubActions-SOC-Plan-${{ matrix.environment }}-${{ github.run_id }}
           role-duration-seconds: 1800

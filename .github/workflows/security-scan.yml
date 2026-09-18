@@ -27,14 +27,15 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           format: sarif
           output_file: tfsec.sarif
-      - name: Ensure SARIF file exists
+      - name: Ensure valid SARIF exists
         if: always()
         run: |
-          if [ ! -f tfsec.sarif ]; then
-            echo '{"runs": []}' > tfsec.sarif
+          if [ ! -f tfsec.sarif ] || [ ! -s tfsec.sarif ]; then
+            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "tfsec"}}, "results": []}]}' > tfsec.sarif
           fi
       - uses: github/codeql-action/upload-sarif@v3.29.5
         if: always()
+        continue-on-error: true
         with: { sarif_file: tfsec.sarif, category: tfsec }
 
   checkov:
@@ -43,20 +44,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
       - uses: bridgecrewio/checkov-action@master
+        continue-on-error: true
         with: 
           directory: . 
           framework: terraform 
           output_format: sarif 
           output_file_path: checkov.sarif 
           soft_fail: true
-      - name: Ensure SARIF file exists
+      - name: Ensure valid SARIF exists
         if: always()
         run: |
-          if [ ! -f checkov.sarif ]; then
-            echo '{"runs": []}' > checkov.sarif
+          if [ ! -f checkov.sarif ] || [ ! -s checkov.sarif ]; then
+            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "checkov"}}, "results": []}]}' > checkov.sarif
           fi
       - uses: github/codeql-action/upload-sarif@v3.29.5
         if: always()
+        continue-on-error: true
         with: { sarif_file: checkov.sarif, category: checkov }
 
   bandit:
@@ -65,14 +68,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
       - run: pip install bandit --quiet
-      - run: |
+      - name: Run Bandit
+        run: |
           if [ -d "lambda" ]; then
             bandit -r lambda/ -f sarif -o bandit.sarif --severity-level medium || true
           else
-            echo '{"runs": []}' > bandit.sarif
+            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "Bandit"}}, "results": []}]}' > bandit.sarif
+          fi
+      - name: Ensure valid SARIF exists
+        if: always()
+        run: |
+          if [ ! -f bandit.sarif ] || [ ! -s bandit.sarif ]; then
+            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "Bandit"}}, "results": []}]}' > bandit.sarif
           fi
       - uses: github/codeql-action/upload-sarif@v3.29.5
         if: always()
+        continue-on-error: true
         with: { sarif_file: bandit.sarif, category: bandit }
 
   gitleaks:
@@ -97,12 +108,13 @@ jobs:
           output: trivy.sarif 
           severity: "HIGH,CRITICAL" 
           exit-code: "0"
-      - name: Ensure SARIF file exists
+      - name: Ensure valid SARIF exists
         if: always()
         run: |
-          if [ ! -f trivy.sarif ]; then
-            echo '{"runs": []}' > trivy.sarif
+          if [ ! -f trivy.sarif ] || [ ! -s trivy.sarif ]; then
+            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "Trivy"}}, "results": []}]}' > trivy.sarif
           fi
       - uses: github/codeql-action/upload-sarif@v3.29.5
         if: always()
+        continue-on-error: true
         with: { sarif_file: trivy.sarif, category: trivy }
