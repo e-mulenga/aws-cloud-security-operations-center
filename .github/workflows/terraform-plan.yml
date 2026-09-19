@@ -1,11 +1,89 @@
 name: Terraform Plan
 
-plan:
+on:
+  pull_request:
+    branches: [main]
+    paths: ["**.tf", "lambda/**", ".github/workflows/terraform-*.yml"]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+  security-events: write
+
+env:
+  TF_VERSION: "1.7.5"
+  AWS_REGION: "af-south-1"
+
+jobs:
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2.3.9
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+
+  security-scan:
+    name: IaC Security Scan
+    runs-on: ubuntu-latest
+    needs: secret-scan
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          soft_fail: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          format: sarif
+          output_file: tfsec.sarif
+      - name: Ensure valid SARIF exists
+        if: always()
+        run: |
+          if [ ! -f tfsec.sarif ] || [ ! -s tfsec.sarif ]; then
+            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "tfsec"}}, "results": []}]}' > tfsec.sarif
+          fi
+      - uses: github/codeql-action/upload-sarif@v3.29.5
+        if: always()
+        continue-on-error: true
+        with: { sarif_file: tfsec.sarif, category: tfsec }
+      - uses: bridgecrewio/checkov-action@master
+        continue-on-error: true
+        with: 
+          directory: . 
+          framework: terraform 
+          output_format: sarif 
+          output_file_path: checkov.sarif 
+          soft_fail: true
+      - name: Ensure valid SARIF exists
+        if: always()
+        run: |
+          if [ ! -f checkov.sarif ] || [ ! -s checkov.sarif ]; then
+            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "checkov"}}, "results": []}]}' > checkov.sarif
+          fi
+      - uses: github/codeql-action/upload-sarif@v3.29.5
+        if: always()
+        continue-on-error: true
+        with: { sarif_file: checkov.sarif, category: checkov }
+
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    needs: secret-scan
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with: { terraform_version: "${{ env.TF_VERSION }}" }
+      - run: terraform fmt -check -recursive -diff
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+
+  plan:
     name: Plan — ${{ matrix.environment }}
     runs-on: ubuntu-latest
     needs: [security-scan, validate]
-    # Only run the plan if it's not a fork PR, ensuring public repo forks don't fail on missing secrets
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    environment: ${{ matrix.environment }}-plan
     strategy:
       fail-fast: false
       matrix:
