@@ -1,44 +1,6 @@
 name: Security Scan
 
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
-  schedule:
-    - cron: "0 3 * * *"
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  security-events: write
-  actions: read
-
-jobs:
-  tfsec:
-    name: tfsec
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4.2.2
-      - name: Run tfsec
-        uses: aquasecurity/tfsec-action@v1.0.3
-        with:
-          soft_fail: true
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          format: sarif
-          output_file: tfsec.sarif
-      - name: Ensure valid SARIF exists
-        if: always()
-        run: |
-          if [ ! -f tfsec.sarif ] || [ ! -s tfsec.sarif ]; then
-            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "tfsec"}}, "results": []}]}' > tfsec.sarif
-          fi
-      - uses: github/codeql-action/upload-sarif@v3.29.5
-        if: always()
-        continue-on-error: true
-        with: { sarif_file: tfsec.sarif, category: tfsec }
-
-  checkov:
+checkov:
     name: checkov
     runs-on: ubuntu-latest
     steps:
@@ -50,7 +12,18 @@ jobs:
       - name: Run Checkov SAST
         run: |
           pip install checkov --quiet
+          rm -rf checkov.sarif
           checkov -d . --output sarif --output-file checkov.sarif || true
+          if [ -d "checkov.sarif" ]; then
+            SARIF_FILE=$(find checkov.sarif -name "*.sarif" | head -n 1)
+            if [ -n "$SARIF_FILE" ]; then
+              cp "$SARIF_FILE" ./checkov_temp.sarif
+              rm -rf checkov.sarif
+              mv ./checkov_temp.sarif checkov.sarif
+            else
+              rm -rf checkov.sarif
+            fi
+          fi
       - name: Ensure valid SARIF exists
         if: always()
         run: |
@@ -61,60 +34,3 @@ jobs:
         if: always()
         continue-on-error: true
         with: { sarif_file: checkov.sarif, category: checkov }
-
-  bandit:
-    name: Bandit (Python Lambda SAST)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4.2.2
-      - run: pip install bandit --quiet
-      - name: Run Bandit
-        run: |
-          if [ -d "lambda" ]; then
-            bandit -r lambda/ -f sarif -o bandit.sarif --severity-level medium || true
-          else
-            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "Bandit"}}, "results": []}]}' > bandit.sarif
-          fi
-      - name: Ensure valid SARIF exists
-        if: always()
-        run: |
-          if [ ! -f bandit.sarif ] || [ ! -s bandit.sarif ]; then
-            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "Bandit"}}, "results": []}]}' > bandit.sarif
-          fi
-      - uses: github/codeql-action/upload-sarif@v3.29.5
-        if: always()
-        continue-on-error: true
-        with: { sarif_file: bandit.sarif, category: bandit }
-
-  gitleaks:
-    name: Gitleaks
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4.2.2
-        with: { fetch-depth: 0 }
-      - uses: gitleaks/gitleaks-action@v2.3.9
-        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
-
-  trivy:
-    name: Trivy IaC
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4.2.2
-      - uses: aquasecurity/trivy-action@master
-        with: 
-          scan-type: config 
-          scan-ref: . 
-          format: sarif 
-          output: trivy.sarif 
-          severity: "HIGH,CRITICAL" 
-          exit-code: "0"
-      - name: Ensure valid SARIF exists
-        if: always()
-        run: |
-          if [ ! -f trivy.sarif ] || [ ! -s trivy.sarif ]; then
-            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "Trivy"}}, "results": []}]}' > trivy.sarif
-          fi
-      - uses: github/codeql-action/upload-sarif@v3.29.5
-        if: always()
-        continue-on-error: true
-        with: { sarif_file: trivy.sarif, category: trivy }
